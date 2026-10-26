@@ -39,7 +39,7 @@ class RdmaEndpointGroupBase {
 
   // Closes all endpoints and server endpoints, then stops the connection
   // manager. Idempotent.
-  folly::coro::Task<void> co_close();
+  virtual folly::coro::Task<void> co_close();
   bool isClosed() const {
     return closed_;
   }
@@ -59,7 +59,7 @@ class RdmaEndpointGroupBase {
   virtual std::shared_ptr<RdmaEndpoint> createEndpointRaw(
       RdmaCmId id,
       bool serverSide) = 0;
-  virtual std::unique_ptr<RdmaCqProvider> createCqProviderRaw(
+  virtual std::shared_ptr<RdmaCqProvider> createCqProviderRaw(
       RdmaEndpoint& endpoint) = 0;
   virtual ibv_qp* createQpProviderRaw(RdmaEndpoint& endpoint) = 0;
   virtual void allocateResourcesRaw(RdmaEndpoint& endpoint) = 0;
@@ -115,7 +115,7 @@ class RdmaEndpointGroup : public RdmaEndpointGroupBase {
     return endpoint;
   }
 
-  virtual std::unique_ptr<RdmaCqProvider> createCqProvider(C& endpoint) = 0;
+  virtual std::shared_ptr<RdmaCqProvider> createCqProvider(C& endpoint) = 0;
   virtual ibv_qp* createQpProvider(C& endpoint) = 0;
   // Must end with endpoint.allocateResources().
   virtual void allocateResources(C& endpoint) = 0;
@@ -126,7 +126,7 @@ class RdmaEndpointGroup : public RdmaEndpointGroupBase {
       bool serverSide) override {
     return factory_->createEndpoint(std::move(id), serverSide);
   }
-  std::unique_ptr<RdmaCqProvider> createCqProviderRaw(
+  std::shared_ptr<RdmaCqProvider> createCqProviderRaw(
       RdmaEndpoint& endpoint) override {
     return createCqProvider(static_cast<C&>(endpoint));
   }
