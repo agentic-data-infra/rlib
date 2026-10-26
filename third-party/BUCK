@@ -1,0 +1,43 @@
+# rlib's external dependencies, installed outside the repo and wrapped as
+# prebuilt libraries. folly's and gtest's flags come from
+# third-party/generated/deps.bzl, which scripts/gen_third_party.py derives
+# from CMake.
+
+load("//third-party:check_deps.bzl", "check_deps")
+load(
+    "//third-party/generated:deps.bzl",
+    "DEPS_PREFIX",
+    "GTEST_LINKER_FLAGS",
+    "GTEST_PREPROCESSOR_FLAGS",
+    "LINKER_FLAGS",
+    "PREPROCESSOR_FLAGS",
+)
+
+check_deps(DEPS_PREFIX)
+
+# folly (with folly::coro), glog and gflags.
+prebuilt_cxx_library(
+    name = "folly",
+    header_only = True,
+    exported_preprocessor_flags = PREPROCESSOR_FLAGS,
+    exported_post_linker_flags = LINKER_FLAGS,
+    visibility = ["PUBLIC"],
+)
+
+# The system rdma-core (libibverbs-dev, librdmacm-dev), linked dynamically:
+# libibverbs loads its device providers at run time.
+prebuilt_cxx_library(
+    name = "rdma",
+    header_only = True,
+    exported_post_linker_flags = ["-lrdmacm", "-libverbs"],
+    visibility = ["PUBLIC"],
+)
+
+# The system googletest.
+prebuilt_cxx_library(
+    name = "gtest",
+    header_only = True,
+    exported_preprocessor_flags = GTEST_PREPROCESSOR_FLAGS,
+    exported_post_linker_flags = GTEST_LINKER_FLAGS,
+    visibility = ["PUBLIC"],
+)
