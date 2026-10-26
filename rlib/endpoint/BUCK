@@ -1,0 +1,12 @@
+# The endpoint API, on top of rlib/verbs.
+cxx_library(
+    name = "endpoint",
+    srcs = glob(["*.cpp"]),
+    header_namespace = "rlib/endpoint",
+    exported_headers = glob(["*.h"]),
+    exported_deps = [
+        "//rlib/verbs:verbs",
+        "//third-party:folly",
+    ],
+    visibility = ["PUBLIC"],
+)
