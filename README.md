@@ -1,15 +1,16 @@
 # rlib
 RDMA endpoints for C++20 coroutines.
 
-rlib is a C++ library for RDMA built around endpoints (`RdmaEndpoint`,
-`RdmaServerEndpoint`, `RdmaActiveEndpoint`, `RdmaEndpointGroup`, ...). It sits
-directly on libibverbs and librdmacm, posts native `ibv_send_wr` chains, and
-has a `folly::coro` API: connecting, accepting and closing are `co_connect`,
-`co_accept` and `co_close`, and posted work requests resume their coroutine
-when they complete.
+rlib is going to be a C++ library for RDMA built around endpoints
+(`RdmaEndpoint`, `RdmaServerEndpoint`, `RdmaActiveEndpoint`,
+`RdmaEndpointGroup`, ...), directly on libibverbs and librdmacm, posting
+native `ibv_send_wr` chains. Its planned API is `folly::coro` based:
+connecting, accepting and closing will be `co_connect`, `co_accept` and
+`co_close`, and posted work requests will resume their coroutine when they
+complete.
 
-So far rlib has the building blocks the endpoints are made of, as small RAII
-and value types in namespace `rlib`:
+The endpoint classes are not written yet. So far rlib has the building blocks
+they are made of, as small RAII and value types in namespace `rlib`:
 
 - `SocketAddress`: an IPv4 or IPv6 address and port, parsed from
   `"host:port"` (`"[::1]:1234"` for IPv6) and converted to and from
