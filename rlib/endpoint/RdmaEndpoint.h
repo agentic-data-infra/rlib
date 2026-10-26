@@ -78,17 +78,18 @@ class RdmaEndpoint {
   int postRecv(ibv_recv_wr& wrs, ibv_recv_wr** badWr = nullptr);
 
   // One-sided RDMA read of [remoteAddr, remoteAddr + length) at the peer
-  // into local.addr() + offset, and write the other way. They poll the
-  // endpoint's completion queue until the request completes, so nothing
-  // else may be outstanding on it. Return 0, EINVAL for a range outside
-  // 'local', the error of posting, or EIO if the request failed.
-  folly::coro::Task<int> co_read(
+  // into local.addr() + offset, and write the other way. Return 0, EINVAL
+  // for a range outside 'local', the error of posting, or EIO if the
+  // request failed. Here they poll the endpoint's completion queue until
+  // the request completes, so nothing else may be outstanding on it;
+  // RdmaActiveEndpoint has no such limit.
+  virtual folly::coro::Task<int> co_read(
       const MemoryRegion& local,
       size_t offset,
       uint32_t length,
       uint64_t remoteAddr,
       uint32_t rkey);
-  folly::coro::Task<int> co_write(
+  virtual folly::coro::Task<int> co_write(
       const MemoryRegion& local,
       size_t offset,
       uint32_t length,
@@ -119,6 +120,12 @@ class RdmaEndpoint {
   // Runs once the endpoint's resources are allocated, e.g. to register
   // memory and post receives.
   virtual void init() {}
+
+  // Runs while closing, once the connection is down and before the QP is
+  // destroyed, e.g. to wait for outstanding work requests to flush.
+  virtual folly::coro::Task<void> co_flush() {
+    co_return;
+  }
 
  private:
   friend class RdmaEndpointGroupBase;
@@ -159,7 +166,7 @@ class RdmaEndpoint {
   const bool serverSide_;
   RdmaCmId id_;
   ibv_pd* pd_ = nullptr;
-  std::unique_ptr<RdmaCqProvider> cqProvider_;
+  std::shared_ptr<RdmaCqProvider> cqProvider_;
   ibv_qp* qp_ = nullptr;
   bool resourcesAllocated_ = false;
 

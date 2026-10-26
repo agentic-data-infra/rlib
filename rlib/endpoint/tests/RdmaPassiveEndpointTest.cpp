@@ -277,15 +277,19 @@ TEST_F(RdmaPassiveEndpointTest, ResumesOnCallersExecutor) {
   };
   auto connect = [&]() -> folly::coro::Task<bool> {
     co_await client->co_connect(serverAddress, 2000ms);
-    bool connected = onPool();
+    co_return onPool();
+  };
+  auto close = [&]() -> folly::coro::Task<bool> {
     co_await client->co_close();
-    co_return connected && onPool();
+    co_return onPool();
   };
   auto [accepted, connected] = folly::coro::blockingWait(
       folly::coro::co_withExecutor(
           &pool, folly::coro::collectAll(accept(), connect())));
   EXPECT_TRUE(accepted);
   EXPECT_TRUE(connected);
+  EXPECT_TRUE(folly::coro::blockingWait(
+      folly::coro::co_withExecutor(&pool, close())));
 }
 
 TEST_F(RdmaPassiveEndpointTest, AcceptsManyConnections) {

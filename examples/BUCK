@@ -1,0 +1,16 @@
+[
+    cxx_binary(
+        name = name,
+        srcs = [src],
+        headers = ["ExampleEndpoint.h"],
+        deps = ["//rlib/endpoint:endpoint"],
+        # Archives must precede the prebuilt libraries they use.
+        link_ordering = "topological",
+    )
+    for name, src in [
+        ("send_recv_server", "SendRecvServer.cpp"),
+        ("send_recv_client", "SendRecvClient.cpp"),
+        ("read_server", "ReadServer.cpp"),
+        ("read_client", "ReadClient.cpp"),
+    ]
+]

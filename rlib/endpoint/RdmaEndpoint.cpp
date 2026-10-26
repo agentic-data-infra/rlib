@@ -100,6 +100,9 @@ folly::coro::Task<void> RdmaEndpoint::co_close() {
       RLIB_LOG("endpoint %d: %s", endpointId_, e.what());
     }
   }
+  if (qp_) {
+    co_await co_flush();
+  }
   // Unregistered before the id is destroyed: a new id may get its address.
   group_.unregisterEndpoint(id_.get());
   std::lock_guard lock{mutex_};

@@ -29,8 +29,8 @@ class RdmaPassiveEndpointGroup : public RdmaEndpointGroup<C> {
   RdmaPassiveEndpointGroup(int maxWR, int maxSge, int cqSize)
       : maxWR_{maxWR}, maxSge_{maxSge}, cqSize_{cqSize} {}
 
-  std::unique_ptr<RdmaCqProvider> createCqProvider(C& endpoint) override {
-    return std::make_unique<RdmaCqProvider>(endpoint.cmId().verbs(), cqSize_);
+  std::shared_ptr<RdmaCqProvider> createCqProvider(C& endpoint) override {
+    return std::make_shared<RdmaCqProvider>(endpoint.cmId().verbs(), cqSize_);
   }
 
   ibv_qp* createQpProvider(C& endpoint) override {

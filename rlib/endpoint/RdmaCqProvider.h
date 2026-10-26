@@ -9,11 +9,12 @@
 
 namespace rlib {
 
-// Owns a completion queue and its completion channel. Move-only.
+// Owns a completion queue and its completion channel.
 class RdmaCqProvider {
  public:
   // Throws RdmaError.
   RdmaCqProvider(ibv_context* verbs, int cqSize);
+  virtual ~RdmaCqProvider() = default;
 
   ibv_cq* cq() const {
     return cq_.get();
