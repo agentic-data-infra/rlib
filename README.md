@@ -1,16 +1,34 @@
 # rlib
 RDMA endpoints for C++20 coroutines.
 
-rlib is going to be a C++ library for RDMA built around endpoints
-(`RdmaEndpoint`, `RdmaServerEndpoint`, `RdmaActiveEndpoint`,
-`RdmaEndpointGroup`, ...), directly on libibverbs and librdmacm, posting
-native `ibv_send_wr` chains. Its planned API is `folly::coro` based:
-connecting, accepting and closing will be `co_connect`, `co_accept` and
-`co_close`, and posted work requests will resume their coroutine when they
-complete.
+rlib is going to be a C++ library for RDMA with two APIs, both
+`folly::coro` based and both in namespace `rlib`:
 
-The endpoint classes are not written yet. So far rlib has the building blocks
-they are made of, as small RAII and value types in namespace `rlib`:
+- **Endpoints** (`RdmaEndpoint`, `RdmaServerEndpoint`, `RdmaActiveEndpoint`,
+  `RdmaEndpointGroup`, ...), directly on libibverbs and librdmacm, posting
+  native `ibv_send_wr` chains. Connecting, accepting and closing will be
+  `co_connect`, `co_accept` and `co_close`, and posted work requests will
+  resume their coroutine when they complete.
+- **RPC** (e.g. `RdmaRpcEndpoint`), on top of the endpoints.
+
+The code is in three layers, each a Buck target that depends only on the one
+below it:
+
+```
+rlib/rpc       //rlib/rpc:rpc            RPC API                (planned)
+   |
+rlib/endpoint  //rlib/endpoint:endpoint  endpoint API           (next PRs)
+   |
+rlib/verbs     //rlib/verbs:verbs        RAII and value types   (today)
+   |
+libibverbs, librdmacm
+```
+
+Tests live next to the code they test (`rlib/verbs/tests`); `rlib/tests` has
+the shared test main.
+
+Today there is the bottom layer, `rlib/verbs`, the building blocks the
+endpoints are made of:
 
 - `SocketAddress`: an IPv4 or IPv6 address and port, parsed from
   `"host:port"` (`"[::1]:1234"` for IPv6) and converted to and from
@@ -24,6 +42,11 @@ they are made of, as small RAII and value types in namespace `rlib`:
   errno.
 
 ```cpp
+#include "rlib/verbs/MemoryRegion.h"
+#include "rlib/verbs/ProtectionDomain.h"
+#include "rlib/verbs/RdmaCmId.h"
+#include "rlib/verbs/RdmaEventChannel.h"
+
 rlib::RdmaEventChannel channel;
 rlib::RdmaCmId id{channel};
 id.bindAddr(rlib::SocketAddress::parse("10.0.0.1:0"));  // an RDMA NIC's address
@@ -35,7 +58,7 @@ rlib::MemoryRegion mr{pd.get(), buffer.data(), buffer.size()};
 ```
 
 Passive endpoints (`RdmaEndpoint`, `RdmaServerEndpoint`, endpoint groups)
-come next, then active endpoints.
+come next, then active endpoints, then RPC.
 
 ## Building
 

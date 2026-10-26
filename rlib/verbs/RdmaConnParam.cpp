@@ -1,8 +1,8 @@
-#include "rlib/RdmaConnParam.h"
+#include "rlib/verbs/RdmaConnParam.h"
 
 #include <stdexcept>
 
-#include "rlib/RdmaError.h"
+#include "rlib/verbs/RdmaError.h"
 
 namespace rlib {
 

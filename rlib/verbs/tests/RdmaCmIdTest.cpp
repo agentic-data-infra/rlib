@@ -1,11 +1,11 @@
-#include "rlib/RdmaCmId.h"
+#include "rlib/verbs/RdmaCmId.h"
 
 #include <utility>
 
 #include <gtest/gtest.h>
 
-#include "rlib/RdmaEventChannel.h"
-#include "rlib/tests/TestUtil.h"
+#include "rlib/verbs/RdmaEventChannel.h"
+#include "rlib/verbs/tests/TestUtil.h"
 
 namespace rlib {
 namespace {

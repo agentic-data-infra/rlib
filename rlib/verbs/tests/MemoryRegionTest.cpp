@@ -1,13 +1,13 @@
-#include "rlib/MemoryRegion.h"
+#include "rlib/verbs/MemoryRegion.h"
 
 #include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
 
-#include "rlib/ProtectionDomain.h"
-#include "rlib/RdmaError.h"
-#include "rlib/tests/TestUtil.h"
+#include "rlib/verbs/ProtectionDomain.h"
+#include "rlib/verbs/RdmaError.h"
+#include "rlib/verbs/tests/TestUtil.h"
 
 namespace rlib {
 namespace {

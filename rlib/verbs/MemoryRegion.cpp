@@ -1,9 +1,9 @@
-#include "rlib/MemoryRegion.h"
+#include "rlib/verbs/MemoryRegion.h"
 
 #include <cstring>
 
-#include "rlib/Log.h"
-#include "rlib/RdmaError.h"
+#include "rlib/verbs/Log.h"
+#include "rlib/verbs/RdmaError.h"
 
 namespace rlib {
 

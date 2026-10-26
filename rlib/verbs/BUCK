@@ -1,0 +1,9 @@
+# The bottom layer: RAII and value types over libibverbs and librdmacm.
+cxx_library(
+    name = "verbs",
+    srcs = glob(["*.cpp"]),
+    header_namespace = "rlib/verbs",
+    exported_headers = glob(["*.h"]),
+    exported_deps = ["//third-party:rdma"],
+    visibility = ["PUBLIC"],
+)

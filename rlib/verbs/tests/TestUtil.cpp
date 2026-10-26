@@ -1,11 +1,11 @@
-#include "rlib/tests/TestUtil.h"
+#include "rlib/verbs/tests/TestUtil.h"
 
 #include <ifaddrs.h>
 #include <net/if.h>
 
-#include "rlib/RdmaCmId.h"
-#include "rlib/RdmaError.h"
-#include "rlib/RdmaEventChannel.h"
+#include "rlib/verbs/RdmaCmId.h"
+#include "rlib/verbs/RdmaError.h"
+#include "rlib/verbs/RdmaEventChannel.h"
 
 namespace rlib::test {
 

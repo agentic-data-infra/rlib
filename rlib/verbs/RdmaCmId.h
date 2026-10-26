@@ -4,7 +4,7 @@
 
 #include <memory>
 
-#include "rlib/SocketAddress.h"
+#include "rlib/verbs/SocketAddress.h"
 
 namespace rlib {
 

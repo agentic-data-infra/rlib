@@ -1,6 +1,6 @@
-#include "rlib/RdmaEventChannel.h"
+#include "rlib/verbs/RdmaEventChannel.h"
 
-#include "rlib/RdmaError.h"
+#include "rlib/verbs/RdmaError.h"
 
 namespace rlib {
 

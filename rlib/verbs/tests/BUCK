@@ -1,0 +1,19 @@
+cxx_library(
+    name = "test_util",
+    srcs = ["TestUtil.cpp"],
+    header_namespace = "rlib/verbs/tests",
+    exported_headers = ["TestUtil.h"],
+    exported_deps = ["//rlib/verbs:verbs"],
+    visibility = ["PUBLIC"],
+)
+
+cxx_test(
+    name = "verbs_test",
+    srcs = glob(["*Test.cpp"]),
+    deps = [
+        ":test_util",
+        "//rlib/tests:test_main",
+    ],
+    # Archives must precede the prebuilt libraries they use.
+    link_ordering = "topological",
+)

@@ -1,25 +1,10 @@
 cxx_library(
     name = "test_main",
-    srcs = [
-        "Main.cpp",
-        "TestUtil.cpp",
-    ],
-    header_namespace = "rlib/tests",
-    exported_headers = ["TestUtil.h"],
+    srcs = ["Main.cpp"],
     exported_deps = [
-        "//rlib:rlib",
+        "//third-party:folly",
         "//third-party:gtest",
     ],
     link_whole = True,
     visibility = ["PUBLIC"],
-)
-
-cxx_test(
-    name = "rlib_test",
-    srcs = glob(
-        ["*Test.cpp"],
-    ),
-    deps = [":test_main"],
-    # Archives must precede the prebuilt libraries they use.
-    link_ordering = "topological",
 )

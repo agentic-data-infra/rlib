@@ -1,10 +1,10 @@
-#include "rlib/RdmaCmId.h"
+#include "rlib/verbs/RdmaCmId.h"
 
 #include <cstring>
 
-#include "rlib/Log.h"
-#include "rlib/RdmaError.h"
-#include "rlib/RdmaEventChannel.h"
+#include "rlib/verbs/Log.h"
+#include "rlib/verbs/RdmaError.h"
+#include "rlib/verbs/RdmaEventChannel.h"
 
 namespace rlib {
 
