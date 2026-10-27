@@ -21,7 +21,7 @@
 #include <gflags/gflags.h>
 
 #include "rlib/endpoint/RdmaActiveEndpointGroup.h"
-#include "rlib/verbs/tests/TestUtil.h"
+#include "rlib/verbs/RdmaAddress.h"
 
 DEFINE_string(address, "", "Server address; empty for the first RDMA device's.");
 DEFINE_bool(polling, false, "Polling instead of blocking CQ threads.");
@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
   folly::Init init(&argc, &argv);
   std::optional<SocketAddress> address;
   if (FLAGS_address.empty()) {
-    address = test::rdmaAddress();
+    address = rdmaAddress();
     if (!address) {
       std::fprintf(stderr, "no RDMA device with an IPv4 address\n");
       return 1;
