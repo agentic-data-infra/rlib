@@ -14,3 +14,24 @@
         ("read_client", "ReadClient.cpp"),
     ]
 ]
+
+cxx_library(
+    name = "rpc_example",
+    exported_headers = ["RpcExample.h"],
+    exported_deps = ["//rlib/rpc:rpc"],
+    visibility = ["PUBLIC"],
+)
+
+[
+    cxx_binary(
+        name = name,
+        srcs = [src],
+        deps = [":rpc_example"],
+        # Archives must precede the prebuilt libraries they use.
+        link_ordering = "topological",
+    )
+    for name, src in [
+        ("rpc_server", "RpcServer.cpp"),
+        ("rpc_client", "RpcClient.cpp"),
+    ]
+]

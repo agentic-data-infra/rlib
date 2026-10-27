@@ -207,6 +207,40 @@ calls in flight within that, or they wait for receiver-not-ready retries.
 Responses for which no send slot is free are queued. Failed calls, and calls
 on a closed or failed connection, throw `RdmaError`.
 
+### RPC examples and benchmark
+
+`examples/RpcExample.h` has a 16-byte request (command, parameter, send
+time) and response, a service that answers parameter + 1 (after
+`--delay_us`, if given), and client loops in three modes: `call` (one
+`co_call` at a time), `concurrent` (`--depth` coroutines calling on one
+connection) and `stream` (`--depth` requests in flight on a stream).
+`rpc_server` serves it; `rpc_client` runs `--clients` connections, each on
+its own thread, and prints calls per second and round-trip latencies.
+
+```
+buck2 run //examples:rpc_server -- --address=10.0.0.1:1919 [--cpus=2,3] [--polling] &
+buck2 run //examples:rpc_client -- --address=10.0.0.1:1919 --clients=4 --mode=stream
+buck2 run //bench:rpc_benchmark -- [--polling] [--inline_dispatch] [--mode=call]
+```
+
+The benchmark runs the server and 1 to 16 clients in one process, each
+client on its own thread making one call at a time. On a 16-vCPU GCP VM
+with Soft-RoCE:
+
+| clients | calls/s (p50 / p99 us) | with `--inline_dispatch` | with `--polling` |
+|--------:|------------------------|--------------------------|------------------|
+| 1       | 87k (11 / 20)          | 136k (6 / 15)            | 77k (13 / 20)    |
+| 2       | 183k (11 / 19)         | 194k (10 / 14)           | 139k (15 / 22)   |
+| 4       | 305k (12 / 23)         | 204k (19 / 25)           | 306k (12 / 23)   |
+| 8       | 396k (19 / 35)         | 207k (38 / 46)           | 427k (17 / 50)   |
+| 16      | 98k (73 / 2990)        | 140k (104 / 121)         | 45k (202 / 3317) |
+
+Client endpoints poll their completion queue while calls are pending, so
+each client keeps a core busy; at 16 clients they take all cores from the
+server's threads and from Soft-RoCE, which runs in the kernel. Inline
+dispatch has no service threads to compete. With a hardware NIC the clients
+compete only with the server.
+
 ## Verbs
 
 `rlib/verbs` has the building blocks the endpoints are made of:
