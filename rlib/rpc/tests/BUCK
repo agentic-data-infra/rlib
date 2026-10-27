@@ -1,0 +1,11 @@
+cxx_test(
+    name = "rpc_test",
+    srcs = glob(["*Test.cpp"]),
+    deps = [
+        "//rlib/rpc:rpc",
+        "//rlib/tests:test_main",
+        "//rlib/verbs/tests:test_util",
+    ],
+    # Archives must precede the prebuilt libraries they use.
+    link_ordering = "topological",
+)

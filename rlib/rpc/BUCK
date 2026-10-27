@@ -1,0 +1,8 @@
+# The RPC API, on top of rlib/endpoint.
+cxx_library(
+    name = "rpc",
+    exported_headers = glob(["*.h"]),
+    header_namespace = "rlib/rpc",
+    exported_deps = ["//rlib/endpoint:endpoint"],
+    visibility = ["PUBLIC"],
+)
