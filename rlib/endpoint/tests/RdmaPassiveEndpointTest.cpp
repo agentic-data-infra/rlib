@@ -15,7 +15,7 @@
 
 #include "rlib/endpoint/RdmaPassiveEndpointGroup.h"
 #include "rlib/verbs/RdmaError.h"
-#include "rlib/verbs/tests/TestUtil.h"
+#include "rlib/verbs/RdmaAddress.h"
 
 namespace rlib {
 namespace {
@@ -72,7 +72,7 @@ int postSend(RdmaEndpoint& endpoint, const MemoryRegion& mr, uint32_t length) {
 class RdmaPassiveEndpointTest : public testing::Test {
  protected:
   void SetUp() override {
-    auto address = test::rdmaAddress();
+    auto address = rdmaAddress();
     if (!address) {
       GTEST_SKIP() << "no RDMA device with an IPv4 address";
     }

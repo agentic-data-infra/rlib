@@ -18,7 +18,7 @@
 
 #include "rlib/rpc/RdmaRpcClientGroup.h"
 #include "rlib/rpc/RdmaRpcServerGroup.h"
-#include "rlib/verbs/tests/TestUtil.h"
+#include "rlib/verbs/RdmaAddress.h"
 
 namespace rlib {
 namespace {
@@ -129,7 +129,7 @@ void expectResponse(const TestMessage& response, const TestMessage& request) {
 class RdmaRpcTest : public testing::TestWithParam<std::tuple<bool, bool>> {
  protected:
   void SetUp() override {
-    address_ = test::rdmaAddress();
+    address_ = rdmaAddress();
     if (!address_) {
       GTEST_SKIP() << "no RDMA device with an IPv4 address";
     }

@@ -4,7 +4,6 @@ cxx_test(
     deps = [
         "//rlib/rpc:rpc",
         "//rlib/tests:test_main",
-        "//rlib/verbs/tests:test_util",
     ],
     # Archives must precede the prebuilt libraries they use.
     link_ordering = "topological",

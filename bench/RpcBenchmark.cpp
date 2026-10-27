@@ -19,7 +19,7 @@
 #include <gflags/gflags.h>
 
 #include "examples/RpcExample.h"
-#include "rlib/verbs/tests/TestUtil.h"
+#include "rlib/verbs/RdmaAddress.h"
 
 DEFINE_string(address, "", "Server address; empty for the first RDMA device's.");
 DEFINE_bool(polling, false, "Polling instead of blocking CQ threads.");
@@ -37,7 +37,7 @@ using namespace rlib::examples;
 
 folly::coro::Task<void> co_run() {
   auto address =
-      FLAGS_address.empty() ? test::rdmaAddress() : SocketAddress::parse(FLAGS_address);
+      FLAGS_address.empty() ? rdmaAddress() : SocketAddress::parse(FLAGS_address);
   if (!address) {
     std::printf("no RDMA device with an IPv4 address\n");
     co_return;

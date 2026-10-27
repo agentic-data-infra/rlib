@@ -14,7 +14,7 @@
 #include <gtest/gtest.h>
 
 #include "rlib/endpoint/RdmaActiveEndpointGroup.h"
-#include "rlib/verbs/tests/TestUtil.h"
+#include "rlib/verbs/RdmaAddress.h"
 
 namespace rlib {
 namespace {
@@ -86,7 +86,7 @@ folly::coro::Task<bool> co_eventually(std::function<bool()> condition) {
 class RdmaActiveEndpointTest : public testing::TestWithParam<bool> {
  protected:
   void SetUp() override {
-    auto address = test::rdmaAddress();
+    auto address = rdmaAddress();
     if (!address) {
       GTEST_SKIP() << "no RDMA device with an IPv4 address";
     }
