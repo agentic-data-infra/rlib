@@ -18,10 +18,12 @@ RdmaCqProcessorBase::RdmaCqProcessorBase(
     ibv_context* verbs,
     int cqSize,
     bool polling,
-    int cpu)
+    int cpu,
+    int clusterId)
     : RdmaCqProvider{verbs, cqSize},
       polling_{polling},
       cpu_{cpu},
+      clusterId_{clusterId},
       stopFd_{eventfd(0, EFD_CLOEXEC)} {
   if (stopFd_ < 0) {
     throwRdmaError("eventfd");
@@ -56,14 +58,31 @@ void RdmaCqProcessorBase::close() {
   thread_.join();
 }
 
-void RdmaCqProcessorBase::registerQp(uint32_t qpNum, RdmaEndpoint& endpoint) {
+bool RdmaCqProcessorBase::registerQp(
+    uint32_t qpNum,
+    RdmaEndpoint& endpoint,
+    int cqEntries) {
   std::lock_guard lock{mutex_};
-  qps_[qpNum] = &endpoint;
+  if (cqEntries_ + cqEntries > cqSize()) {
+    return false;
+  }
+  cqEntries_ += cqEntries;
+  qps_[qpNum] = {&endpoint, cqEntries};
+  return true;
 }
 
 void RdmaCqProcessorBase::unregisterQp(uint32_t qpNum) {
   std::lock_guard lock{mutex_};
-  qps_.erase(qpNum);
+  auto it = qps_.find(qpNum);
+  if (it != qps_.end()) {
+    cqEntries_ -= it->second.cqEntries;
+    qps_.erase(it);
+  }
+}
+
+int RdmaCqProcessorBase::qpCount() const {
+  std::lock_guard lock{mutex_};
+  return static_cast<int>(qps_.size());
 }
 
 void RdmaCqProcessorBase::run() {
@@ -141,7 +160,7 @@ void RdmaCqProcessorBase::dispatch(const ibv_wc& wc) {
     RLIB_LOG("completion for unknown QP %u", wc.qp_num);
     return;
   }
-  dispatchCqEvent(*it->second, wc);
+  dispatchCqEvent(*it->second.endpoint, wc);
 }
 
 } // namespace rlib
