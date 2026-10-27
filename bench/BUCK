@@ -8,3 +8,14 @@ cxx_binary(
     # Archives must precede the prebuilt libraries they use.
     link_ordering = "topological",
 )
+
+cxx_binary(
+    name = "rpc_benchmark",
+    srcs = ["RpcBenchmark.cpp"],
+    deps = [
+        "//examples:rpc_example",
+        "//rlib/verbs/tests:test_util",
+    ],
+    # Archives must precede the prebuilt libraries they use.
+    link_ordering = "topological",
+)
