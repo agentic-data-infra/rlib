@@ -30,11 +30,13 @@ struct RdmaCmEvent;
 // Applications derive their endpoint classes from it and create them in
 // their group's RdmaEndpointFactory; init() runs once the resources exist.
 //
+// Endpoints are always owned by shared_ptrs (shared_from_this works).
+//
 // The control path (connecting, accepting) throws RdmaError; the data path
 // (posting work requests, one-sided reads and writes) returns errors. Its
 // coroutines resume on the awaiting coroutine's executor. One control call
 // at a time.
-class RdmaEndpoint {
+class RdmaEndpoint : public std::enable_shared_from_this<RdmaEndpoint> {
  public:
   RdmaEndpoint(RdmaEndpointGroupBase& group, RdmaCmId id, bool serverSide);
   virtual ~RdmaEndpoint();
@@ -120,6 +122,10 @@ class RdmaEndpoint {
   // Runs once the endpoint's resources are allocated, e.g. to register
   // memory and post receives.
   virtual void init() {}
+
+  // Runs on the connection manager thread when the connection goes down,
+  // closed by either side; keep it short.
+  virtual void onDisconnected() {}
 
   // Runs while closing, once the connection is down and before the QP is
   // destroyed, e.g. to wait for outstanding work requests to flush.

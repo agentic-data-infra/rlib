@@ -10,13 +10,15 @@ both in namespace `rlib`:
   and `co_close`. Passive endpoints leave polling their completion queues
   to the application; active endpoints (`RdmaActiveEndpoint`) resume the
   coroutine that posted a work request when it completes.
-- **RPC** (e.g. `RdmaRpcEndpoint`), on top of the endpoints, later.
+- **RPC** (`RdmaRpcClientGroup`, `RdmaRpcServerGroup`, `RdmaRpcService`),
+  on top of the endpoints: fixed-size request/response messages over
+  SEND/RECV, with many calls in flight per connection.
 
 The code is in three layers, each a Buck target that depends only on the one
 below it:
 
 ```
-rlib/rpc       //rlib/rpc:rpc            RPC API                (planned)
+rlib/rpc       //rlib/rpc:rpc            RPC API
    |
 rlib/endpoint  //rlib/endpoint:endpoint  endpoint API
    |
@@ -26,7 +28,7 @@ libibverbs, librdmacm
 ```
 
 Tests live next to the code they test (`rlib/verbs/tests`,
-`rlib/endpoint/tests`); `rlib/tests` has the shared test main.
+`rlib/endpoint/tests`, `rlib/rpc/tests`); `rlib/tests` has the shared test main.
 
 ## Endpoints
 
@@ -141,6 +143,69 @@ with 16 outstanding (64 KiB). On a GCP VM with Soft-RoCE (where perftest's
 |------------|--------------|---------------|----------------|-----------------|
 | blocking   | 20-25 us     | 9 us          | 0.63 GB/s      | 0.87 GB/s       |
 | polling    | 10-18 us     | 3 us          | 0.64 GB/s      | 0.90 GB/s       |
+
+## RPC
+
+A protocol is a request and a response type, each a small struct that
+serializes itself (`RdmaRpcMessage`: `kSize`, `write`, `update`). A server
+group accepts connections and hands each request to the service's
+`co_process`; a client endpoint's `co_call` sends a request and resumes with
+the response.
+
+```cpp
+#include "rlib/rpc/RdmaRpcClientGroup.h"
+#include "rlib/rpc/RdmaRpcServerGroup.h"
+
+struct Message {
+  static constexpr size_t kSize = 16;
+  uint64_t a = 0, b = 0;
+  size_t write(std::span<std::byte> out) const;   // returns bytes written
+  void update(std::span<const std::byte> in);
+};
+struct Protocol {
+  using Request = Message;
+  using Response = Message;
+};
+
+class Service : public rlib::RdmaRpcService<Protocol> {
+  folly::coro::Task<void> co_process(
+      rlib::RdmaRpcServerEvent<Protocol>& event) override {
+    event.response().a = event.request().a + 1;   // may co_await
+    co_return;
+  }
+};
+
+// Server.
+Service service;
+rlib::RdmaRpcServerOptions options;
+options.cpus = {2, 3};                            // CQ threads
+auto server = rlib::RdmaRpcServerGroup<Protocol>::create(service, options);
+server->serve(rlib::SocketAddress::parse("10.0.0.1:1919"));
+
+// Client.
+auto client = rlib::RdmaRpcClientGroup<Protocol>::create();
+auto endpoint = client->createEndpoint();
+co_await endpoint->co_connect(address, 1s);
+Message request, response;
+co_await endpoint->co_call(request, response);    // from any number of coroutines
+
+auto stream = endpoint->createStream();           // responses as they arrive
+co_await stream->co_request(request, response);
+Message* done = co_await stream->co_take();
+```
+
+Each connection has `recvQueue` receives posted and `sendQueue` send slots
+in one registered buffer; a message is a 4-byte ticket and the payload,
+sent inline when it fits `maxInline`. A client has up to
+min(`recvQueue`, `sendQueue`) calls in flight (more wait for a slot); its
+endpoints have no thread: the calling coroutines poll the completion queue,
+one at a time. A server's connections share its CQ processors (`cpus`,
+`clusterSize` connections each), and `co_process` runs on the group's
+executor, or starts on the CQ thread with `inlineDispatch`. A server
+connection works on up to `recvQueue` requests at once; keep the clients'
+calls in flight within that, or they wait for receiver-not-ready retries.
+Responses for which no send slot is free are queued. Failed calls, and calls
+on a closed or failed connection, throw `RdmaError`.
 
 ## Verbs
 

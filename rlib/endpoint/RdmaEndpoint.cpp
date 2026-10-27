@@ -227,6 +227,7 @@ void RdmaEndpoint::dispatchCmEvent(const RdmaCmEvent& event) {
       }
     }
       advance(State::kClosed);
+      onDisconnected();
       break;
     case RDMA_CM_EVENT_ADDR_ERROR:
     case RDMA_CM_EVENT_ROUTE_ERROR:
