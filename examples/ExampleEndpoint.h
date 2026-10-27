@@ -70,10 +70,10 @@ class ExampleEndpoint : public RdmaActiveEndpoint {
 };
 
 // The examples' group: blocking CQ threads, up to 128 work requests of up
-// to 4 elements per QP, CQs of 128.
+// to 4 elements per QP, CQs of 256.
 inline std::unique_ptr<RdmaActiveEndpointGroup<ExampleEndpoint>> makeGroup() {
   auto group = std::make_unique<RdmaActiveEndpointGroup<ExampleEndpoint>>(
-      false, 128, 4, 128);
+      false, 128, 4, 256);
   group->connParam().retryCount = 2;
   group->connParam().rnrRetryCount = 7;
   group->init(

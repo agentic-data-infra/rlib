@@ -113,6 +113,11 @@ folly::coro::Task<ibv_wc> RdmaActiveEndpoint::co_nextCqEvent() {
   co_return co_await cqEvents_.dequeue();
 }
 
+int RdmaActiveEndpoint::clusterId() const {
+  auto* processor = dynamic_cast<RdmaCqProcessorBase*>(cqProvider());
+  return processor ? processor->clusterId() : -1;
+}
+
 folly::coro::Task<void> RdmaActiveEndpoint::co_flush() {
   ibv_qp_attr attr{};
   attr.qp_state = IBV_QPS_ERR;

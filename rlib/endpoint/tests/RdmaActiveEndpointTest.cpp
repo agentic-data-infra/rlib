@@ -2,6 +2,7 @@
 #include <cstring>
 #include <numeric>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <folly/coro/BlockingWait.h>
@@ -102,8 +103,12 @@ class RdmaActiveEndpointTest : public testing::TestWithParam<bool> {
     }
   }
 
-  std::unique_ptr<Group> makeGroup() {
-    auto group = std::make_unique<Group>(GetParam(), 256, 1, 2048);
+  std::unique_ptr<Group> makeGroup(
+      int maxWR = 256,
+      int cqSize = 8192,
+      std::vector<int> cpus = {}) {
+    auto group =
+        std::make_unique<Group>(GetParam(), maxWR, 1, cqSize, std::move(cpus));
     group->connParam().rnrRetryCount = 7;
     group->init(
         std::make_unique<RdmaDefaultEndpointFactory<TestEndpoint>>(*group));
@@ -338,6 +343,73 @@ TEST_P(RdmaActiveEndpointTest, ResumesOnCallersExecutor) {
           &pool, folly::coro::collectAll(send(), receive())));
   EXPECT_TRUE(sent);
   EXPECT_TRUE(received);
+}
+
+TEST_P(RdmaActiveEndpointTest, SpreadsEndpointsOverProcessors) {
+  int cores = static_cast<int>(std::thread::hardware_concurrency());
+  std::vector<int> cpus{0, 1 % cores, 2 % cores};
+  folly::coro::blockingWait(clientGroup_->co_close());
+  clientGroup_ = makeGroup(256, 8192, cpus);
+
+  constexpr int kEndpoints = 7;
+  std::vector<std::shared_ptr<TestEndpoint>> servers, clients;
+  for (int i = 0; i < kEndpoints; ++i) {
+    auto [server, client] = connect();
+    servers.push_back(server);
+    clients.push_back(client);
+    EXPECT_EQ(client->clusterId(), i % 3);
+    EXPECT_EQ(server->clusterId(), 0);
+  }
+  for (int i = 0; i < kEndpoints; ++i) {
+    auto* processor =
+        static_cast<RdmaCqProcessorBase*>(clients[i]->cqProvider());
+    EXPECT_EQ(processor->cpu(), cpus[i % 3]);
+    EXPECT_EQ(processor->isPolling(), GetParam());
+    EXPECT_EQ(processor->qpCount(), i % 3 == 0 ? 3 : 2);
+    EXPECT_EQ(clients[i]->cqProvider(), clients[i % 3]->cqProvider());
+  }
+  EXPECT_NE(clients[0]->cqProvider(), clients[1]->cqProvider());
+  EXPECT_NE(clients[1]->cqProvider(), clients[2]->cqProvider());
+
+  // Traffic both ways through every processor at once.
+  std::vector<folly::coro::Task<ibv_wc>> sends;
+  for (int i = 0; i < kEndpoints; ++i) {
+    std::memset(clients[i]->sendBuffer.data(), 'a' + i, 8);
+    std::memset(servers[i]->sendBuffer.data(), 'A' + i, 8);
+    sends.push_back(clients[i]->co_send(8));
+    sends.push_back(servers[i]->co_send(8));
+  }
+  for (auto& wc : folly::coro::blockingWait(
+           folly::coro::collectAllRange(std::move(sends)))) {
+    EXPECT_EQ(wc.status, IBV_WC_SUCCESS);
+  }
+  for (int i = 0; i < kEndpoints; ++i) {
+    auto atServer = folly::coro::blockingWait(servers[i]->co_nextCqEvent());
+    auto atClient = folly::coro::blockingWait(clients[i]->co_nextCqEvent());
+    ASSERT_EQ(atServer.status, IBV_WC_SUCCESS);
+    ASSERT_EQ(atClient.status, IBV_WC_SUCCESS);
+    EXPECT_EQ(servers[i]->recvBuffer[0], 'a' + i);
+    EXPECT_EQ(clients[i]->recvBuffer[0], 'A' + i);
+  }
+}
+
+TEST_P(RdmaActiveEndpointTest, RefusesEndpointsAFullProcessorCannotTake) {
+  // Two endpoints of 2 * 16 completions fill a CQ of 64.
+  folly::coro::blockingWait(clientGroup_->co_close());
+  clientGroup_ = makeGroup(16, 64);
+  auto [server1, client1] = connect();
+  auto [server2, client2] = connect();
+  auto client = clientGroup_->createEndpoint();
+  try {
+    folly::coro::blockingWait(client->co_connect(server_->srcAddr(), 2000ms));
+    FAIL() << "connected";
+  } catch (const RdmaError& e) {
+    EXPECT_EQ(e.code().value(), ENOSPC) << e.what();
+  }
+  // Closing one makes room again.
+  folly::coro::blockingWait(client1->co_close());
+  auto [server3, client3] = connect();
+  EXPECT_TRUE(client3->isConnected());
 }
 
 INSTANTIATE_TEST_SUITE_P(

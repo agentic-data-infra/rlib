@@ -55,6 +55,10 @@ class RdmaActiveEndpoint : public RdmaEndpoint {
   // on the caller's executor. Cancellable.
   folly::coro::Task<ibv_wc> co_nextCqEvent();
 
+  // Which of the group's CQ processors on the device the endpoint got, or
+  // -1 before its resources are allocated.
+  int clusterId() const;
+
  protected:
   // Moves the QP to the error state, waits for the outstanding co_post*
   // calls to complete (flushed), and unregisters the QP from the CQ

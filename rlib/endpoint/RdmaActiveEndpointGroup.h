@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <folly/coro/BlockingWait.h>
 
@@ -15,29 +16,31 @@
 
 namespace rlib {
 
-// A group of RdmaActiveEndpoints (class C): all endpoints on a device share
-// one completion queue, whose RdmaActiveCqProcessor thread wakes the
-// endpoints' co_post* calls and hands other completions to their
-// dispatchCqEvent. Call init() before use.
+// A group of RdmaActiveEndpoints (class C) whose completions RdmaActive-
+// CqProcessor threads take: they wake the endpoints' co_post* calls and
+// hand other completions to their dispatchCqEvent. Each device gets one
+// processor per entry of 'cpus', pinned to that core (or one unpinned
+// processor if 'cpus' is empty), each with its own completion queue; new
+// endpoints go to them round-robin. Call init() before use.
 template <typename C>
 class RdmaActiveEndpointGroup : public RdmaEndpointGroup<C> {
  public:
   // 'polling': the CQ threads poll all the time instead of sleeping on the
   // completion channel. Each QP takes up to maxWR send and receive work
-  // requests of up to maxSge scatter/gather elements; each device's CQ
-  // holds cqSize completions, for all its endpoints. 'cpu' (unless
-  // negative) is the core to pin the CQ threads to.
+  // requests of up to maxSge scatter/gather elements. Each processor's CQ
+  // holds cqSize completions; its endpoints may need 2 * maxWR each, and
+  // allocating an endpoint for which a full processor is next fails.
   RdmaActiveEndpointGroup(
       bool polling,
       int maxWR,
       int maxSge,
       int cqSize,
-      int cpu = -1)
+      std::vector<int> cpus = {})
       : polling_{polling},
         maxWR_{maxWR},
         maxSge_{maxSge},
         cqSize_{cqSize},
-        cpu_{cpu} {}
+        cpus_{std::move(cpus)} {}
 
   ~RdmaActiveEndpointGroup() override {
     // Endpoints flush through the CQ threads, so close them first.
@@ -46,18 +49,24 @@ class RdmaActiveEndpointGroup : public RdmaEndpointGroup<C> {
     }
   }
 
+  // The device's next processor in turn.
   std::shared_ptr<RdmaCqProvider> createCqProvider(C& endpoint) override {
     ibv_context* verbs = endpoint.cmId().verbs();
     std::lock_guard lock{mutex_};
-    auto& processor = processors_[verbs];
-    if (!processor) {
-      processor = std::make_shared<RdmaActiveCqProcessor<C>>(
-          verbs, cqSize_, polling_, cpu_);
-      processor->start();
+    auto& device = devices_[verbs];
+    if (device.processors.empty()) {
+      auto cpus = cpus_.empty() ? std::vector<int>{-1} : cpus_;
+      for (size_t i = 0; i < cpus.size(); ++i) {
+        auto processor = std::make_shared<RdmaActiveCqProcessor<C>>(
+            verbs, cqSize_, polling_, cpus[i], static_cast<int>(i));
+        processor->start();
+        device.processors.push_back(std::move(processor));
+      }
     }
-    return processor;
+    return device.processors[device.next++ % device.processors.size()];
   }
 
+  // Throws RdmaError (ENOSPC if the endpoint's processor is full).
   ibv_qp* createQpProvider(C& endpoint) override {
     auto* processor =
         static_cast<RdmaCqProcessorBase*>(endpoint.cqProvider());
@@ -70,7 +79,11 @@ class RdmaActiveEndpointGroup : public RdmaEndpointGroup<C> {
     attr.recv_cq = processor->cq();
     attr.send_cq = processor->cq();
     ibv_qp* qp = endpoint.cmId().createQp(endpoint.pd(), attr);
-    processor->registerQp(qp->qp_num, endpoint);
+    if (!processor->registerQp(qp->qp_num, endpoint, 2 * maxWR_)) {
+      endpoint.cmId().destroyQp();
+      throw RdmaError{
+          ENOSPC, "CQ processor full: raise cqSize or add processors"};
+    }
     return qp;
   }
 
@@ -82,8 +95,10 @@ class RdmaActiveEndpointGroup : public RdmaEndpointGroup<C> {
   folly::coro::Task<void> co_close() override {
     co_await RdmaEndpointGroup<C>::co_close();
     std::lock_guard lock{mutex_};
-    for (auto& [verbs, processor] : processors_) {
-      processor->close();
+    for (auto& [verbs, device] : devices_) {
+      for (auto& processor : device.processors) {
+        processor->close();
+      }
     }
   }
 
@@ -99,16 +114,23 @@ class RdmaActiveEndpointGroup : public RdmaEndpointGroup<C> {
   int cqSize() const {
     return cqSize_;
   }
+  const std::vector<int>& cpus() const {
+    return cpus_;
+  }
 
  private:
+  struct Device {
+    std::vector<std::shared_ptr<RdmaActiveCqProcessor<C>>> processors;
+    size_t next = 0;
+  };
+
   const bool polling_;
   const int maxWR_;
   const int maxSge_;
   const int cqSize_;
-  const int cpu_;
+  const std::vector<int> cpus_;
   std::mutex mutex_;
-  std::unordered_map<ibv_context*, std::shared_ptr<RdmaActiveCqProcessor<C>>>
-      processors_;
+  std::unordered_map<ibv_context*, Device> devices_;
 };
 
 } // namespace rlib

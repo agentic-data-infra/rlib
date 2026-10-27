@@ -43,22 +43,39 @@ struct RdmaCompletionWaiter {
 // sleeps on the completion channel until a completion arrives.
 class RdmaCqProcessorBase : public RdmaCqProvider {
  public:
-  // 'cpu' (unless negative) is the core to pin the thread to. Throws
-  // RdmaError.
-  RdmaCqProcessorBase(ibv_context* verbs, int cqSize, bool polling, int cpu);
+  // 'cpu' (unless negative) is the core to pin the thread to; 'clusterId'
+  // tells processors of the same group and device apart. Throws RdmaError.
+  RdmaCqProcessorBase(
+      ibv_context* verbs,
+      int cqSize,
+      bool polling,
+      int cpu,
+      int clusterId = 0);
   ~RdmaCqProcessorBase() override;
 
   void start();
   // Stops and joins the thread; idempotent.
   void close();
 
-  void registerQp(uint32_t qpNum, RdmaEndpoint& endpoint);
+  // Registers a QP that may have up to 'cqEntries' completions in the
+  // queue at a time; returns false, registering nothing, if the queue
+  // cannot take them on top of the registered QPs'.
+  bool registerQp(uint32_t qpNum, RdmaEndpoint& endpoint, int cqEntries);
   // After it returns, no more completions go to the QP's endpoint.
   void unregisterQp(uint32_t qpNum);
 
   bool isPolling() const {
     return polling_;
   }
+  // The core the thread is pinned to, or -1.
+  int cpu() const {
+    return cpu_;
+  }
+  int clusterId() const {
+    return clusterId_;
+  }
+  // The registered QPs.
+  int qpCount() const;
 
  protected:
   // On the processor's thread, with the QP's endpoint registered.
@@ -71,12 +88,18 @@ class RdmaCqProcessorBase : public RdmaCqProvider {
 
   const bool polling_;
   const int cpu_;
+  const int clusterId_;
   int stopFd_;
   std::atomic<bool> stop_{false};
   std::thread thread_;
+  struct Qp {
+    RdmaEndpoint* endpoint;
+    int cqEntries;
+  };
   // Held while dispatching, so that unregisterQp waits for it.
-  std::mutex mutex_;
-  std::unordered_map<uint32_t, RdmaEndpoint*> qps_;
+  mutable std::mutex mutex_;
+  std::unordered_map<uint32_t, Qp> qps_;
+  int cqEntries_ = 0;
 };
 
 // A CQ processor for endpoints of class C.

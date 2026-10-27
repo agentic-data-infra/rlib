@@ -69,9 +69,14 @@ co_await group->co_close();                    // closes what is still open
 ### Active endpoints
 
 In an `RdmaActiveEndpointGroup<C>` (`C` derived from `RdmaActiveEndpoint`),
-all endpoints on a device share one completion queue, and a CQ processor
-thread takes its completions: it either polls all the time (lowest latency,
-one core) or sleeps on the completion channel. `co_postSend` and
+CQ processor threads take the endpoints' completions: each has its own
+completion queue and either polls it all the time (lowest latency, one core)
+or sleeps on its completion channel. By default each device gets one
+processor, shared by all endpoints; with `cpus`, it gets one per listed
+core, pinned to it, and endpoints go to them round-robin (`clusterId()`
+says which). A processor's CQ (`cqSize`) must have room for 2 * `maxWR`
+completions per endpoint; allocating an endpoint for a full processor fails
+with ENOSPC. `co_postSend` and
 `co_postRecv` post a chain of work requests and resume the awaiting
 coroutine, on its executor, with the completion of the last one; any
 number may be outstanding, and no allocation is made per operation (the
@@ -87,7 +92,8 @@ requests posted with plain `postSend`/`postRecv`, e.g. receives posted in
 
 using Group = rlib::RdmaActiveEndpointGroup<rlib::RdmaActiveEndpoint>;
 auto group = std::make_unique<Group>(/*polling=*/false, /*maxWR=*/128,
-                                     /*maxSge=*/4, /*cqSize=*/1024);
+                                     /*maxSge=*/4, /*cqSize=*/4096,
+                                     /*cpus=*/std::vector<int>{2, 3});
 group->init(std::make_unique<
     rlib::RdmaDefaultEndpointFactory<rlib::RdmaActiveEndpoint>>(*group));
 
